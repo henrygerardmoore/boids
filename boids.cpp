@@ -257,10 +257,10 @@ int main() {
         } else if (event.key.code == sf::Keyboard::Key::R) {
           boids.clear();
         } else if (event.key.code == sf::Keyboard::Key::Equal) {
-          BoidAverageSpeed += 10;
-          BoidAverageSpeed = std::min(300.f, BoidAverageSpeed);
+          BoidAverageSpeed += 30;
+          BoidAverageSpeed = std::min(500.f, BoidAverageSpeed);
         } else if (event.key.code == sf::Keyboard::Key::Dash) {
-          BoidAverageSpeed -= 10;
+          BoidAverageSpeed -= 30;
           BoidAverageSpeed = std::max(kBOID_MAX_SPEED_DIFF, BoidAverageSpeed);
         } else if (event.key.code == sf::Keyboard::Key::Left) {
           turn_bias = -1;
