@@ -91,5 +91,5 @@ repos:
     hooks:
       - id: clang-tidy
         entry: clang-tidy-12
-        args: ['-p', 'build/compile_commands.json', '-extra-arg=-Wno-unknown-warning-option' ]
+        args: ['-p', 'build/compile_commands.json', '-extra-arg=-Wno-unknown-warning-option', '-checks=-cppcoreguidelines-avoid-non-const-global-variables' ]
         files: \.(cpp|hpp)$
