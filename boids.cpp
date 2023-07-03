@@ -15,6 +15,8 @@ std::uniform_real_distribution<float> AngleSampler(
     0.f,
     float(2.f * M_PI));  // sample a random angle
 
+float BoidAverageSpeed = 50;  // pixels / s
+
 template <typename T>
 T DegToRad(T val) {
   static_assert(std::is_floating_point<T>::value,
@@ -29,10 +31,30 @@ T RadToDeg(T val) {
   return val * 180. / M_PI;
 }
 
+float FixAngle(float o) {
+  auto fixed_angle = float(std::fmod(o, 2 * M_PI));
+  if (fixed_angle > M_PI) {
+    fixed_angle -= 2 * M_PI;
+  }
+  return fixed_angle;
+}
+
 struct State {
   float x;
   float y;
   float o;
+  State(float x_pos, float y_pos, float o_pos, sf::Window const& window) {
+    o = FixAngle(o_pos);
+    auto const size = window.getSize();
+    x = float(std::fmod(x_pos, size.x));
+    if (x < 0) {
+      x += float(size.x);
+    }
+    y = float(std::fmod(y_pos, size.y));
+    if (y < 0) {
+      y += float(size.y);
+    }
+  }
 };
 
 struct Rates {
@@ -63,13 +85,13 @@ class Boid {
   }
   [[nodiscard]] sf::Shape const& getShape() {
     shape_.setPosition(s_.x, s_.y);
-    shape_.setRotation(RadToDeg(s_.o) + 90);
+    shape_.setRotation(RadToDeg(s_.o) + 90);  // visual offset for shape
     return shape_;
   }
 
   [[nodiscard]] State const& getState() { return s_; }
 
-  void setState(State s) { s_ = s; }
+  void setState(State const s) { s_ = s; }
 
   Rates getRates() { return Rates{speed_, turn_rate_}; }
 
@@ -77,7 +99,7 @@ class Boid {
     sf::Vector2f separation_vector{0, 0};
     sf::Vector2f cohesion_vector{0, 0};
     sf::Vector2f other_boid_position;
-    float theta_desired_alignment = s_.o;
+    float theta_desired_alignment = 0;
     sf::Vector2f const this_boid_position{s_.x, s_.y};
     std::size_t boids_seen = 0;
     for (auto const& boid : boids) {
@@ -108,7 +130,7 @@ class Boid {
 
     if (boids_seen == 0) {
       turn_rate_ = 0;
-      speed_ = avg_speed_;
+      speed_ = BoidAverageSpeed;
       return;
     }
 
@@ -123,12 +145,12 @@ class Boid {
     auto const theta_desired_cohesion =
         std::atan2(cohesion_vector.y, cohesion_vector.x);
     auto const theta_change =
-        (kBOID_SEPARATION_WEIGHT * theta_desired_separation +
-         kBOID_ALIGNMENT_WEIGHT * theta_desired_alignment +
-         kBOID_COHESION_WEIGHT * theta_desired_cohesion) /
-            (kBOID_SEPARATION_WEIGHT + kBOID_ALIGNMENT_WEIGHT +
-             kBOID_COHESION_WEIGHT) -
-        s_.o;
+        FixAngle((kBOID_SEPARATION_WEIGHT * theta_desired_separation +
+                  kBOID_ALIGNMENT_WEIGHT * theta_desired_alignment +
+                  kBOID_COHESION_WEIGHT * theta_desired_cohesion) /
+                     (kBOID_SEPARATION_WEIGHT + kBOID_ALIGNMENT_WEIGHT +
+                      kBOID_COHESION_WEIGHT) -
+                 s_.o);
 
     turn_rate_ = std::min(
         std::max(-max_turn_rate_, theta_change),
@@ -139,20 +161,22 @@ class Boid {
         (kBOID_SEPARATION_WEIGHT * separation_vector +
          kBOID_COHESION_WEIGHT * cohesion_vector) /
         (kBOID_SEPARATION_WEIGHT + kBOID_COHESION_WEIGHT);
-    auto const angle_to_desired_position =
-        std::atan2(desired_position.y - s_.y, desired_position.x - s_.x) - s_.o;
+    auto const angle_to_desired_position = FixAngle(
+        std::atan2(desired_position.y - s_.y, desired_position.x - s_.x) -
+        s_.o);
+
     auto const distance_to_desired_position =
         float(std::sqrt(std::pow(desired_position.y - s_.y, 2) +
                         std::pow(desired_position.x - s_.x, 2)));
 
-    speed_ = std::cos(angle_to_desired_position) *
-                 distance_to_desired_position / vision_distance_ *
-                 max_speed_diff_ +
-             avg_speed_;  // if the desired location is as far as we can see
-                          // directly behind us, go min speed; If it's as far as
-                          // we can see in front of us, go max speed
-    speed_ = std::min(std::max(avg_speed_ - max_speed_diff_, speed_),
-                      avg_speed_ + max_speed_diff_);
+    speed_ =
+        std::cos(angle_to_desired_position) * distance_to_desired_position /
+            vision_distance_ * max_speed_diff_ +
+        BoidAverageSpeed;  // if the desired location is as far as we can see
+                           // directly behind us, go min speed; If it's as far
+                           // as we can see in front of us, go max speed
+    speed_ = std::min(std::max(BoidAverageSpeed - max_speed_diff_, speed_),
+                      BoidAverageSpeed + max_speed_diff_);
   }
 
  private:
@@ -161,8 +185,7 @@ class Boid {
   float vision_distance_ = 100;       // pixels
   float const max_turn_rate_ = M_PI;  // radians / s
   float turn_rate_ = 0;
-  float avg_speed_ = 50;             // pixels / s
-  float speed_ = avg_speed_;         // pixels / s
+  float speed_ = BoidAverageSpeed;   // pixels / s
   float const max_speed_diff_ = 20;  // pixels / s
 };
 
@@ -171,6 +194,7 @@ int main() {
   unsigned int const desired_framerate = 165;
   float dt = 1 / float(desired_framerate);
   bool paused = false;
+  float turn_bias = 0;
 
   window.setFramerateLimit(desired_framerate);
   std::vector<std::shared_ptr<Boid>> boids;
@@ -182,10 +206,27 @@ int main() {
         auto const coords =
             window.mapPixelToCoords(sf::Mouse::getPosition(window));
         boids.emplace_back(std::make_shared<Boid>(
-            State{coords.x, coords.y, AngleSampler(RNG)}));
+            State(coords.x, coords.y, AngleSampler(RNG), window)));
       } else if (event.type == sf::Event::KeyPressed) {
         if (event.key.code == sf::Keyboard::Key::Space) {
           paused = !paused;
+        } else if (event.key.code == sf::Keyboard::Key::R) {
+          boids.clear();
+        } else if (event.key.code == sf::Keyboard::Key::Equal) {
+          BoidAverageSpeed += 10;
+          BoidAverageSpeed = std::min(300.f, BoidAverageSpeed);
+        } else if (event.key.code == sf::Keyboard::Key::Dash) {
+          BoidAverageSpeed -= 10;
+          BoidAverageSpeed = std::max(10.f, BoidAverageSpeed);
+        } else if (event.key.code == sf::Keyboard::Key::Left) {
+          turn_bias = -1;
+        } else if (event.key.code == sf::Keyboard::Key::Right) {
+          turn_bias = 1;
+        }
+      } else if (event.type == sf::Event::KeyReleased) {
+        if (event.key.code == sf::Keyboard::Left ||
+            event.key.code == sf::Keyboard::Right) {
+          turn_bias = 0;
         }
       }
     }
@@ -197,11 +238,13 @@ int main() {
         auto const rates = boid->getRates();
         auto const turn_rate = rates.omega;
         auto const boid_speed = rates.speed;
-        auto const new_o = state.o + dt * turn_rate;
+        auto const new_o = state.o + dt * (turn_rate + turn_bias);
         auto const new_x = state.x + std::cos(state.o) * boid_speed * dt;
         auto const new_y = state.y + std::sin(state.o) * boid_speed * dt;
 
-        boid->setState(State{new_x, new_y, new_o});
+        auto const wrapped_state = State(new_x, new_y, new_o, window);
+
+        boid->setState(wrapped_state);
       }
 
       window.draw(boid->getShape());
