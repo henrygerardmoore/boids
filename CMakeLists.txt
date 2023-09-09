@@ -11,6 +11,9 @@ enable_testing()
 
 find_package(spdlog REQUIRED)
 find_package(SFML REQUIRED)
+find_package(nlohmann_json REQUIRED)
+
 add_executable(boids boids.cpp)
 
-target_link_libraries(boids PRIVATE sfml-graphics spdlog::spdlog)
+target_link_libraries(boids PRIVATE nlohmann_json::nlohmann_json sfml-graphics
+                                    spdlog::spdlog)

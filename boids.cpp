@@ -1,10 +1,13 @@
 #include <chrono>
 #include <cmath>
+#include <fstream>
 #include <memory>
 #include <random>
+#include <string>
 #include <vector>
 
 #include <SFML/Graphics.hpp>
+#include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 
 std::random_device Dev;
@@ -224,19 +227,39 @@ class Boid {
 };
 
 int main() {
+  std::string image_filename;
+  unsigned int x_res = 0;
+  unsigned int y_res = 0;
+  try {
+    std::ifstream f("config.json");
+    nlohmann::json config = nlohmann::json::parse(f);
+
+    x_res = config["resolution_x"];
+    y_res = config["resolution_y"];
+
+    image_filename = config["image_filename"];
+  } catch (...) {
+    spdlog::error("config.json not present or improperly configured.");
+    return EXIT_FAILURE;
+  }
+
   sf::Texture background;
-  if (!background.loadFromFile("boids_wallpaper.png")) {
-    spdlog::error(
-        "Cannot load background image; be sure to run from the same directory "
-        "as boids_wallpaper.png");
-    return EXIT_FAILURE;  // probably should just print a message and fail
+  if (!image_filename.empty()) {
+    if (!background.loadFromFile(image_filename)) {
+      spdlog::error(
+          "Cannot load background image; be sure {} is in boids directory and "
+          "you are running from that directory",
+          image_filename);
+      return EXIT_FAILURE;
+    }
   }
 
   sf::Sprite background_sprite(background);
   auto const window = std::make_shared<sf::RenderWindow>(
-      sf::VideoMode(2559u, 1440u), std::string("boid_desktop_bg"),
+      sf::VideoMode(x_res, y_res), std::string("boid_desktop_bg"),
       sf::Style::None);
-  window->setPosition({0, 0});
+  window->setPosition(
+      {-1, 0});  // have to offset this by -1 or else the dock will go away :(
   unsigned int const desired_framerate = 165;
   float dt = 1 / float(desired_framerate);
   bool paused = false;
