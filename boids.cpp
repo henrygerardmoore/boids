@@ -225,16 +225,18 @@ class Boid {
 
 int main() {
   sf::Texture background;
-  if (!background.loadFromFile("sky_cropped.jpg")) {
+  if (!background.loadFromFile("boids_wallpaper.png")) {
     spdlog::error(
         "Cannot load background image; be sure to run from the same directory "
-        "as sky_cropped.jpg");
+        "as boids_wallpaper.png");
     return EXIT_FAILURE;  // probably should just print a message and fail
   }
 
   sf::Sprite background_sprite(background);
   auto const window = std::make_shared<sf::RenderWindow>(
-      sf::VideoMode(1920u, 1080u), std::string("SFML"));
+      sf::VideoMode(2559u, 1440u), std::string("boid_desktop_bg"),
+      sf::Style::None);
+  window->setPosition({0, 0});
   unsigned int const desired_framerate = 165;
   float dt = 1 / float(desired_framerate);
   bool paused = false;
