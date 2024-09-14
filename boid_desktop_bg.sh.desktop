@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Exec=/home/henry/projects/boids/boid_desktop_bg.sh >> ~/.boid_log
+Hidden=false
+NoDisplay=false
+X-GNOME-Autostart-enabled=true
+Name[en_US]=boids
+Name=boids
+Comment[en_US]=
+Comment=
